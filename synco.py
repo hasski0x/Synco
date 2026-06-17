@@ -393,6 +393,7 @@ class SyncoApp:
         style.configure("Hero.TLabelframe", padding=12)
         style.configure("Section.TLabelframe", padding=12)
         style.configure("Accent.TButton", padding=(14, 7))
+        style.configure("Action.TButton", padding=(14, 8))
         style.configure("Status.TLabel", padding=(8, 5))
 
     def _build_ui(self):
@@ -493,13 +494,12 @@ class SyncoApp:
         actions = ttk.Frame(editor)
         actions.grid(row=6, column=1, sticky="w", pady=(16, 0))
         button_width = 12
-        ttk.Button(actions, text="Save Job", command=self._save_current_job, style="Accent.TButton", width=button_width).grid(row=0, column=0, padx=(0, 8))
-        ttk.Button(actions, text="Preview", command=lambda: self._start_sync(preview=True), width=button_width).grid(row=0, column=1, padx=8)
-        self.run_button = ttk.Button(actions, text="Run Now", command=lambda: self._start_sync(preview=False), style="Accent.TButton")
-        self.run_button.configure(width=button_width)
-        self.run_button.grid(row=0, column=2, padx=8)
-        self.cancel_button = ttk.Button(actions, text="Cancel", command=self._cancel_sync, state="disabled", width=button_width)
-        self.cancel_button.grid(row=0, column=3, padx=8)
+        ttk.Button(actions, text="Save Job", command=self._save_current_job, style="Action.TButton", width=button_width).grid(row=0, column=0, padx=(0, 8), ipady=1)
+        ttk.Button(actions, text="Preview", command=lambda: self._start_sync(preview=True), style="Action.TButton", width=button_width).grid(row=0, column=1, padx=8, ipady=1)
+        self.run_button = ttk.Button(actions, text="Run Now", command=lambda: self._start_sync(preview=False), style="Action.TButton", width=button_width)
+        self.run_button.grid(row=0, column=2, padx=8, ipady=1)
+        self.cancel_button = ttk.Button(actions, text="Cancel", command=self._cancel_sync, state="disabled", style="Action.TButton", width=button_width)
+        self.cancel_button.grid(row=0, column=3, padx=8, ipady=1)
 
         log_frame = ttk.LabelFrame(main, text="Activity", style="Section.TLabelframe")
         log_frame.grid(row=2, column=0, sticky="nsew")
