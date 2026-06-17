@@ -22,7 +22,7 @@ py synco.py
 - Runs two-way sync where the newest file wins on either side.
 - Offers preview mode so you can see what would change first.
 - Offers mirror mode for one-way jobs to delete destination files when they no longer exist in the source.
-- Runs scheduled sync jobs at a chosen minute interval while Synco is open.
+- Runs scheduled sync jobs at a chosen minute or day interval while Synco is open.
 - Includes admin tools to create, edit, duplicate, delete, import, and export sync jobs.
 - Keeps file timestamps when files are copied.
 - Blocks unsafe folder choices, like syncing a folder into itself.

@@ -18,6 +18,8 @@ BUFFER_SIZE = 1024 * 1024
 TIME_TOLERANCE_SECONDS = 1
 ONE_WAY = "One-way"
 TWO_WAY = "Two-way"
+SCHEDULE_MINUTES = "Minutes"
+SCHEDULE_DAYS = "Days"
 
 
 def app_data_dir():
@@ -67,6 +69,15 @@ def bring_window_forward(root):
     root.focus_force()
 
 
+def schedule_label(job):
+    amount = max(1, int(job.schedule_amount or 1))
+    if job.schedule_unit == SCHEDULE_DAYS:
+        unit = "day" if amount == 1 else "days"
+        return f"Every {amount} {unit}"
+    unit = "minute" if amount == 1 else "minutes"
+    return f"Every {amount} {unit}"
+
+
 @dataclass
 class SyncStats:
     copied: int = 0
@@ -87,6 +98,8 @@ class SyncJob:
     enabled: bool = True
     schedule_enabled: bool = False
     interval_minutes: int = 60
+    schedule_unit: str = SCHEDULE_MINUTES
+    schedule_amount: int = 60
     last_run: str = ""
     next_run: str = ""
     last_status: str = "Not run yet"
@@ -97,12 +110,21 @@ class SyncJob:
         fields = {key: data.get(key) for key in cls.__dataclass_fields__}
         job = cls(**{key: value for key, value in fields.items() if value is not None})
         job.interval_minutes = max(1, int(job.interval_minutes or 60))
+        job.schedule_unit = SCHEDULE_DAYS if job.schedule_unit == SCHEDULE_DAYS else SCHEDULE_MINUTES
+        if "schedule_amount" not in data:
+            job.schedule_amount = job.interval_minutes
+        job.schedule_amount = max(1, int(job.schedule_amount or 1))
         job.mode = TWO_WAY if job.mode == TWO_WAY else ONE_WAY
         return job
 
     def schedule_next(self):
         if self.schedule_enabled and self.enabled:
-            self.next_run = (datetime.now() + timedelta(minutes=max(1, self.interval_minutes))).replace(microsecond=0).isoformat()
+            if self.schedule_unit == SCHEDULE_DAYS:
+                delta = timedelta(days=max(1, self.schedule_amount))
+            else:
+                delta = timedelta(minutes=max(1, self.schedule_amount))
+                self.interval_minutes = max(1, self.schedule_amount)
+            self.next_run = (datetime.now() + delta).replace(microsecond=0).isoformat()
         else:
             self.next_run = ""
 
@@ -342,6 +364,8 @@ class SyncoApp:
         self.enabled = BooleanVar(value=True)
         self.schedule_enabled = BooleanVar(value=False)
         self.interval_minutes = IntVar(value=60)
+        self.schedule_unit = StringVar(value=SCHEDULE_MINUTES)
+        self.schedule_amount = IntVar(value=60)
         self.status = StringVar(value="Ready.")
 
         self.messages = queue.Queue()
@@ -461,8 +485,10 @@ class SyncoApp:
         schedule.grid(row=5, column=1, sticky="w", pady=(8, 0))
         ttk.Checkbutton(schedule, text="Scheduled sync", variable=self.schedule_enabled, command=self._sync_form_to_job).grid(row=0, column=0, padx=(0, 16))
         ttk.Label(schedule, text="Every").grid(row=0, column=1, padx=(0, 6))
-        ttk.Spinbox(schedule, from_=1, to=10080, textvariable=self.interval_minutes, width=8, command=self._sync_form_to_job).grid(row=0, column=2)
-        ttk.Label(schedule, text="minutes").grid(row=0, column=3, padx=(6, 0))
+        ttk.Spinbox(schedule, from_=1, to=10080, textvariable=self.schedule_amount, width=8, command=self._sync_form_to_job).grid(row=0, column=2)
+        unit_box = ttk.Combobox(schedule, textvariable=self.schedule_unit, values=(SCHEDULE_MINUTES, SCHEDULE_DAYS), state="readonly", width=10)
+        unit_box.grid(row=0, column=3, padx=(6, 0))
+        unit_box.bind("<<ComboboxSelected>>", lambda _event: self._sync_form_to_job())
 
         actions = ttk.Frame(editor)
         actions.grid(row=6, column=1, sticky="w", pady=(16, 0))
@@ -494,7 +520,7 @@ class SyncoApp:
 
         for variable in (self.name, self.source, self.destination, self.mode):
             variable.trace_add("write", lambda *_args: self._sync_form_to_job())
-        for variable in (self.interval_minutes,):
+        for variable in (self.interval_minutes, self.schedule_amount, self.schedule_unit):
             variable.trace_add("write", lambda *_args: self._sync_form_to_job())
 
     def _metric_card(self, parent, column, title, value):
@@ -599,6 +625,8 @@ class SyncoApp:
             self.enabled.set(job.enabled)
             self.schedule_enabled.set(job.schedule_enabled)
             self.interval_minutes.set(max(1, job.interval_minutes))
+            self.schedule_unit.set(job.schedule_unit)
+            self.schedule_amount.set(max(1, job.schedule_amount))
             self._refresh_cards(job)
         finally:
             self.loading_form = False
@@ -616,9 +644,16 @@ class SyncoApp:
         if not job:
             return
         try:
-            interval = max(1, int(self.interval_minutes.get()))
+            amount = max(1, int(self.schedule_amount.get()))
         except Exception:
-            interval = 60
+            amount = 60
+        unit = SCHEDULE_DAYS if self.schedule_unit.get() == SCHEDULE_DAYS else SCHEDULE_MINUTES
+        schedule_changed = (
+            job.schedule_unit != unit
+            or job.schedule_amount != amount
+            or job.schedule_enabled != bool(self.schedule_enabled.get())
+            or job.enabled != bool(self.enabled.get())
+        )
         job.name = self.name.get().strip() or "Untitled Sync Job"
         job.source = self.source.get().strip()
         job.destination = self.destination.get().strip()
@@ -627,8 +662,10 @@ class SyncoApp:
         job.dry_run = bool(self.dry_run.get())
         job.enabled = bool(self.enabled.get())
         job.schedule_enabled = bool(self.schedule_enabled.get())
-        job.interval_minutes = interval
-        if job.schedule_enabled and not parse_iso(job.next_run):
+        job.schedule_unit = unit
+        job.schedule_amount = amount
+        job.interval_minutes = amount if unit == SCHEDULE_MINUTES else amount * 1440
+        if job.schedule_enabled and (schedule_changed or not parse_iso(job.next_run)):
             job.schedule_next()
         if not job.schedule_enabled:
             job.next_run = ""
@@ -658,7 +695,7 @@ class SyncoApp:
                 if not job.enabled:
                     markers.append("Disabled")
                 if job.schedule_enabled:
-                    markers.append(f"Every {job.interval_minutes}m")
+                    markers.append(schedule_label(job))
                 if job.mode == TWO_WAY:
                     markers.append("2-way")
                 summary = " | ".join(markers) or "Manual"
@@ -679,7 +716,7 @@ class SyncoApp:
         schedule = "Manual"
         if job.schedule_enabled:
             next_run = parse_iso(job.next_run)
-            schedule = f"Every {job.interval_minutes}m"
+            schedule = schedule_label(job)
             if next_run:
                 schedule += f" | {next_run.strftime('%I:%M %p')}"
         last_run = parse_iso(job.last_run)
