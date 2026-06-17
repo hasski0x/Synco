@@ -2,6 +2,7 @@ import json
 import os
 import queue
 import shutil
+import traceback
 import threading
 import time
 import uuid
@@ -27,6 +28,7 @@ def app_data_dir():
 
 
 JOBS_FILE = app_data_dir() / "jobs.json"
+ERROR_LOG = app_data_dir() / "error.log"
 
 
 def now_iso():
@@ -36,6 +38,13 @@ def now_iso():
 def parse_iso(value):
     if not value:
         return None
+
+
+def log_error(exc):
+    with ERROR_LOG.open("a", encoding="utf-8") as file:
+        file.write(f"\n[{now_iso()}] {exc}\n")
+        file.write(traceback.format_exc())
+        file.write("\n")
     try:
         return datetime.fromisoformat(value)
     except ValueError:
@@ -797,9 +806,26 @@ class SyncoApp:
 
 
 def main():
-    root = Tk()
-    SyncoApp(root)
-    root.mainloop()
+    try:
+        root = Tk()
+
+        def show_callback_error(exc_type, exc_value, exc_traceback):
+            with ERROR_LOG.open("a", encoding="utf-8") as file:
+                file.write(f"\n[{now_iso()}] {exc_value}\n")
+                traceback.print_exception(exc_type, exc_value, exc_traceback, file=file)
+                file.write("\n")
+            messagebox.showerror(APP_NAME, f"Something went wrong.\n\nDetails were saved to:\n{ERROR_LOG}")
+
+        root.report_callback_exception = show_callback_error
+        SyncoApp(root)
+        root.mainloop()
+    except Exception as exc:
+        log_error(exc)
+        try:
+            messagebox.showerror(APP_NAME, f"Synco could not start.\n\nDetails were saved to:\n{ERROR_LOG}")
+        except Exception:
+            print(f"Synco could not start. Details were saved to: {ERROR_LOG}")
+        raise
 
 
 if __name__ == "__main__":
