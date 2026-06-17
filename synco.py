@@ -492,11 +492,13 @@ class SyncoApp:
 
         actions = ttk.Frame(editor)
         actions.grid(row=6, column=1, sticky="w", pady=(16, 0))
-        ttk.Button(actions, text="Save Job", command=self._save_current_job, style="Accent.TButton").grid(row=0, column=0, padx=(0, 8))
-        ttk.Button(actions, text="Preview", command=lambda: self._start_sync(preview=True)).grid(row=0, column=1, padx=8)
+        button_width = 12
+        ttk.Button(actions, text="Save Job", command=self._save_current_job, style="Accent.TButton", width=button_width).grid(row=0, column=0, padx=(0, 8))
+        ttk.Button(actions, text="Preview", command=lambda: self._start_sync(preview=True), width=button_width).grid(row=0, column=1, padx=8)
         self.run_button = ttk.Button(actions, text="Run Now", command=lambda: self._start_sync(preview=False), style="Accent.TButton")
+        self.run_button.configure(width=button_width)
         self.run_button.grid(row=0, column=2, padx=8)
-        self.cancel_button = ttk.Button(actions, text="Cancel", command=self._cancel_sync, state="disabled")
+        self.cancel_button = ttk.Button(actions, text="Cancel", command=self._cancel_sync, state="disabled", width=button_width)
         self.cancel_button.grid(row=0, column=3, padx=8)
 
         log_frame = ttk.LabelFrame(main, text="Activity", style="Section.TLabelframe")
