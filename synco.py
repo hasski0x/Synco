@@ -348,6 +348,8 @@ class SyncoApp:
         self.worker = None
         self.running_job_id = None
         self.cancel_requested = False
+        self.loading_form = False
+        self.refreshing_jobs = False
 
         self._configure_style()
         self._build_ui()
@@ -562,8 +564,12 @@ class SyncoApp:
         self._refresh_jobs()
 
     def _job_selected(self, _event=None):
+        if self.loading_form or self.refreshing_jobs:
+            return
         selection = self.jobs_list.selection()
         if not selection:
+            return
+        if selection[0] == self.selected_job_id:
             return
         self._select_job(selection[0])
 
@@ -582,16 +588,20 @@ class SyncoApp:
         return None
 
     def _load_job_to_form(self, job):
-        self.name.set(job.name)
-        self.source.set(job.source)
-        self.destination.set(job.destination)
-        self.mode.set(job.mode)
-        self.mirror.set(job.mirror)
-        self.dry_run.set(job.dry_run)
-        self.enabled.set(job.enabled)
-        self.schedule_enabled.set(job.schedule_enabled)
-        self.interval_minutes.set(max(1, job.interval_minutes))
-        self._refresh_cards(job)
+        self.loading_form = True
+        try:
+            self.name.set(job.name)
+            self.source.set(job.source)
+            self.destination.set(job.destination)
+            self.mode.set(job.mode)
+            self.mirror.set(job.mirror)
+            self.dry_run.set(job.dry_run)
+            self.enabled.set(job.enabled)
+            self.schedule_enabled.set(job.schedule_enabled)
+            self.interval_minutes.set(max(1, job.interval_minutes))
+            self._refresh_cards(job)
+        finally:
+            self.loading_form = False
 
     def _clear_form(self):
         self.name.set("")
@@ -600,6 +610,8 @@ class SyncoApp:
         self.mode.set(ONE_WAY)
 
     def _sync_form_to_job(self):
+        if self.loading_form:
+            return
         job = self._current_job()
         if not job:
             return
@@ -634,26 +646,34 @@ class SyncoApp:
         self._refresh_jobs()
 
     def _refresh_jobs(self):
+        if self.refreshing_jobs:
+            return
         selected = self.selected_job_id
-        for item in self.jobs_list.get_children():
-            self.jobs_list.delete(item)
-        for job in self.jobs:
-            markers = []
-            if not job.enabled:
-                markers.append("Disabled")
-            if job.schedule_enabled:
-                markers.append(f"Every {job.interval_minutes}m")
-            if job.mode == TWO_WAY:
-                markers.append("2-way")
-            summary = " | ".join(markers) or "Manual"
-            self.jobs_list.insert("", END, iid=job.id, text=job.name, values=(summary,))
-        if selected and self.jobs_list.exists(selected):
-            self.jobs_list.selection_set(selected)
+        self.refreshing_jobs = True
+        try:
+            for item in self.jobs_list.get_children():
+                self.jobs_list.delete(item)
+            for job in self.jobs:
+                markers = []
+                if not job.enabled:
+                    markers.append("Disabled")
+                if job.schedule_enabled:
+                    markers.append(f"Every {job.interval_minutes}m")
+                if job.mode == TWO_WAY:
+                    markers.append("2-way")
+                summary = " | ".join(markers) or "Manual"
+                self.jobs_list.insert("", END, iid=job.id, text=job.name, values=(summary,))
+            if selected and self.jobs_list.exists(selected):
+                current_selection = self.jobs_list.selection()
+                if current_selection != (selected,):
+                    self.jobs_list.selection_set(selected)
 
-        scheduled = [parse_iso(job.next_run) for job in self.jobs if parse_iso(job.next_run)]
-        scheduled = [item for item in scheduled if item]
-        self.total_jobs_label.configure(text=f"{len(self.jobs)} job{'s' if len(self.jobs) != 1 else ''}")
-        self.next_run_label.configure(text=f"Next: {min(scheduled).strftime('%I:%M %p')}" if scheduled else "No scheduled jobs")
+            scheduled = [parse_iso(job.next_run) for job in self.jobs if parse_iso(job.next_run)]
+            scheduled = [item for item in scheduled if item]
+            self.total_jobs_label.configure(text=f"{len(self.jobs)} job{'s' if len(self.jobs) != 1 else ''}")
+            self.next_run_label.configure(text=f"Next: {min(scheduled).strftime('%I:%M %p')}" if scheduled else "No scheduled jobs")
+        finally:
+            self.refreshing_jobs = False
 
     def _refresh_cards(self, job):
         schedule = "Manual"
