@@ -38,6 +38,10 @@ def now_iso():
 def parse_iso(value):
     if not value:
         return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None
 
 
 def log_error(exc):
@@ -45,10 +49,22 @@ def log_error(exc):
         file.write(f"\n[{now_iso()}] {exc}\n")
         file.write(traceback.format_exc())
         file.write("\n")
-    try:
-        return datetime.fromisoformat(value)
-    except ValueError:
-        return None
+
+
+def bring_window_forward(root):
+    root.update_idletasks()
+    width = root.winfo_width()
+    height = root.winfo_height()
+    screen_width = root.winfo_screenwidth()
+    screen_height = root.winfo_screenheight()
+    left = max(0, int((screen_width - width) / 2))
+    top = max(0, int((screen_height - height) / 2))
+    root.geometry(f"{width}x{height}+{left}+{top}")
+    root.deiconify()
+    root.lift()
+    root.attributes("-topmost", True)
+    root.after(900, lambda: root.attributes("-topmost", False))
+    root.focus_force()
 
 
 @dataclass
@@ -818,6 +834,7 @@ def main():
 
         root.report_callback_exception = show_callback_error
         SyncoApp(root)
+        bring_window_forward(root)
         root.mainloop()
     except Exception as exc:
         log_error(exc)

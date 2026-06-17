@@ -4,7 +4,11 @@ Synco is a Windows folder sync manager with saved sync jobs, scheduling, one-way
 
 ## Run
 
-Double-click `Run Synco.bat`, or run:
+Double-click `Run Synco.bat`.
+
+If the app does not appear, double-click `Debug Synco.bat`. It keeps a command window open and shows startup details.
+
+You can also run:
 
 ```powershell
 py synco.py
